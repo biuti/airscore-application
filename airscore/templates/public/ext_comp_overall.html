@@ -1,0 +1,61 @@
+{% extends "base.html"%}
+
+{% block page_title %}
+Competition Results - Overall
+{% endblock %}
+
+{% block head %}
+<!-- CSS -->
+<link href='/static/css/task.css' rel='stylesheet'>
+<!-- JS -->
+<script type='text/javascript' src='/static/js/utils.js'></script>
+<script type='text/javascript' src='/static/js/microajax.minified.js'></script>
+{% endblock %}
+
+{% block back %}
+<a href="{{ url_for('public.ext_competition', compid=compid) }}">Back to Competition</a>
+{% endblock %}
+
+{% block content %}
+<div class='container-fluid'>
+  <div class='row'>
+    <div class='col col-md-7 comp_header mt-1' id='comp_header'>
+      <h2 id='comp_name'></h2>
+      <h4 class='mb-2 text-info' id='ext_comp_header'>Imported Event - Not scored in Airscore</h4>
+      <h4 id='comp_date'></h4>
+      <h4 id='comp_director'></h4>
+      <select name='dhv' id='dhv' class='form-control col-md-4' placeholder='Class'>
+        <option value='' selected>Open</option>
+        <option value='A'>Novice</option>
+        <option value='B'>Fun</option>
+        <option value='C'>Sports</option>
+        <option value='D'>Serial</option>
+        <option value='CCC'>Competition</option>
+      </select>
+    </div>
+    <div class='col col-md-5 parameters'>
+      <table class='table table-sm' id='formula'>
+        <thead class='thead-light' id='formula_hd'>
+        <tr>
+          <th>Information</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody class='small' id='formula_bd'></tbody>
+      </table>
+    </div>
+  </div>
+  {% from "macros.html" import datatable with context %}
+  {{ datatable('results_table') }}
+  <p>
+    <span id='created' class=''></span>
+  </p>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="{{ static_url_for('static', filename='js/enums.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/pop_comp_overall.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/class_filter.js') }}"></script>
+<script type='text/javascript'>populate_comp_overall({{results|tojson}})</script>
+{% endblock %}

@@ -8,13 +8,11 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -127,3 +125,41 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# docker created folders
+dev.db/
+dev.db/*
+node_modules/
+node_modules/*
+
+# config files
+secret.yaml
+defines.yaml
+
+# ssh folder
+.ssh/
+.ssh/*
+
+# test files
+/airscore/core/_Inline/
+/airscore/core/_Inline/*
+/airscore/core/test_files/
+/airscore/core/test_files/*
+/airscore/core/console/
+/airscore/core/console/*
+
+# application data
+airscore/data/airspace/openair/*
+airscore/data/airspace/check_file/*
+airscore/data/json/*
+airscore/data/livetracking/
+airscore/data/log/*
+airscore/data/map-objects/*
+airscore/data/map-objects/tasks/*
+airscore/data/map-objects/tracks/*
+airscore/data/results/*
+airscore/data/temp/
+airscore/data/temp/*
+airscore/data/tracks/*
+airscore/data/waypoints/
+airscore/data/waypoints/*

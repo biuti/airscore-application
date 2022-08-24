@@ -1,0 +1,217 @@
+{% macro render_field(field,
+                    form_type="basic",
+                    preset=None,
+                    horizontal_columns=('lg', 2, 10),
+                    button_map={},
+                    button_style='',
+                    button_size='') %}
+
+    {# this is a workaround hack for the more straightforward-code of just passing required=required parameter.
+    Older versions of wtforms do not have the necessary fix for required=False attributes, but will also not set
+    the required flag in the first place. we skirt the issue using the code below #}
+
+    {% set id = kwargs.get('id', field.name) %}
+    {% if preset and not preset.visible %}
+        {% set value = field.data|safe if field.data is not none %}
+        <input type="hidden" id="{{ id }}" name="{{ field.name }}" value="{{ value }}">
+    {% elif field.hidden or field.widget.input_type == 'hidden' %}
+        {{ field(**kwargs)|safe }}
+    {% else %}
+        {% if preset %}
+            {% set _ = kwargs.update({'readonly': kwargs.get('readonly', False) or not preset.editable}) %}
+        {% endif %}
+        {% if field.flags.required and not required in kwargs %}
+            {% set kwargs = dict(required=True, **kwargs) %}
+        {% endif %}
+        {% if kwargs.get('disabled', False) or kwargs.get('readonly', False) %}
+            {% set _ = kwargs.update({'readonly': True, 'disabled': False}) %}
+        {% else %}
+            {% set _ = kwargs.update({'readonly': False, 'disabled': False}) %}
+        {% endif %}
+        {% set extra_classes = ' ' + field.render_kw.class if field.render_kw.class else '' %}
+
+        {% if kwargs.get('readonly', False) is sameas true %}
+            {% set value = field.data|safe if field.data is not none %}
+            <div class="mr-4 form-group {%- if form_type == "horizontal" %} row{% endif -%} {%- if field.flags.required %} required{% endif -%}">
+                <input type="hidden" id="{{id}}" name="{{ field.name }}" value="{{ value }}">
+                {{ field.label(class="form-control-label")|safe }}: {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                {% set _ = kwargs.update({'disabled': True, 'id': id+'_dummy'}) %}
+                {% if field.choices is not undefined %}
+                    {{ field(class="form-control form-control-sm%s" % extra_classes, **kwargs)|safe }}
+                {% else %}
+                    <span id="{{ id }}" class="form-control form-control-sm{{extra_classes}}" readonly>{% if field.widget.input_type == 'checkbox' %}{{value is sameas true}} {% else %} {{ value }} {% endif %}</span>
+                {% endif %}
+            </div>
+
+        {% elif field.widget.input_type == 'checkbox' %}
+            <div class="mr-4 form-group form-check{% if form_type == "inline" %} form-check-inline{% endif %}">
+                {{ field.label(class="form-control-label", for=field.id)|safe }}: {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                {%- if field.errors %}
+                    {{ field(class_="form-control form-control-sm is-invalid%s" % extra_classes)|safe }}
+                {%- else -%}
+                    {{ field(class_="form-control form-control-sm%s" % extra_classes)|safe }}
+                {%- endif %}
+                {%- if field.errors %}
+                    {%- for error in field.errors %}
+                        <div class="invalid-feedback" style="display: block;">{{ error }}</div>
+                    {%- endfor %}
+                {%- endif %}
+            </div>
+        {%- elif field.type == 'RadioField' -%}
+            {# note: A cleaner solution would be rendering depending on the widget,
+            this is just a hack for now, until I can think of something better #}
+            <div class="mr-4 form-group {% if form_type == 'horizontal' %}row{% endif %}{% if required %} required{% endif %}">
+                {%- if form_type == "inline" %}
+                    {{ field.label(class="sr-only")|safe }}
+                {% elif form_type == "horizontal" %}
+                    {{ field.label(class="form-control-label " + (
+                    " col-%s-%s" % horizontal_columns[0:2]))|safe }}
+                {%- else -%}
+                    {{ field.label(class="form-control-label")|safe }}
+                {% endif %}
+                : {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                {% if form_type == 'horizontal' %}
+                  <div class=" col-{{ horizontal_columns[0] }}-{{ horizontal_columns[2] }}">
+                {% endif %}
+                {% for item in field -%}
+                    <div class="form-check{% if form_type == "inline" %} form-check-inline{% endif %}">
+                        {{ item.label(class="form-check-label", for=item.id)|safe }}: {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                        {{ item(class_="form-check-input")|safe }}
+                    </div>
+                {% endfor %}
+            {% if form_type == 'horizontal' %}
+              </div>
+            {% endif %}
+            {%- if field.errors %}
+                {%- for error in field.errors %}
+                    <div class="invalid-feedback" style="display: block;">{{ error }}</div>
+                {%- endfor %}
+            {%- endif %}
+            </div>
+        {%- elif field.type == 'SubmitField' -%}
+            {# deal with jinja scoping issues? #}
+            {% set field_kwargs = kwargs %}
+            {# note: same issue as above - should check widget, not field type #}
+                {{ field(class='btn btn-%s btn-%s%s' % (button_map.get(field.name), extra_classes), **field_kwargs) }}
+        {%- elif field.type in ['FormField', 'FieldList'] -%}
+            {# note: FormFields are tricky to get right and complex setups requiring
+            these are probably beyond the scope of what this macro tries to do.
+            the code below ensures that things don't break horribly if we run into
+            one, but does not try too hard to get things pretty. #}
+            <fieldset>
+                <legend>{{ field.label }}</legend>
+                {%- for subfield in field %}
+                    {% if not bootstrap_is_hidden_field(subfield) -%}
+                        {{ render_field(subfield,
+                          form_type=form_type,
+                          horizontal_columns=horizontal_columns,
+                          button_map=button_map) }}
+                    {%- endif %}
+                {%- endfor %}
+            </fieldset>
+        {% else -%}
+            <div class="mr-4 form-group {%- if form_type == "horizontal" %} row{% endif -%} {%- if field.flags.required %} required{% endif -%}">
+                {%- if form_type == "inline" %}
+                    {{ field.label(class="sr-only")|safe }}: {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                    {% if field.type == 'FileField' %}
+                        {% if field.errors %}
+                            {{ field(class="form-control-file is-invalid%s" % extra_classes, **kwargs)|safe }}
+                        {% else %}
+                            {{ field(class="form-control-file%s" % extra_classes, **kwargs)|safe }}
+                        {% endif %}
+                    {% else %}
+                        {% if field.errors %}
+                            {{ field(class="form-control mb-2 mr-sm-2 mb-sm-0 is-invalid%s" % extra_classes, **kwargs)|safe }}
+                        {% else %}
+                            {{ field(class="form-control mb-2 mr-sm-2 mb-sm-0%s" % extra_classes, **kwargs)|safe }}
+                        {% endif %}
+                    {% endif %}
+                {% elif form_type == "horizontal" %}
+                    {{ field.label(class="form-control-label " + (" col-%s-%s" % horizontal_columns[0:2]))|safe }}: {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                    <div class=" col-{{ horizontal_columns[0] }}-{{ horizontal_columns[2] }}">
+                        {% if field.type == 'FileField' %}
+                            {% if field.errors %}
+                                {{ field(class="form-control-file is-invalid%s" % extra_classes, **kwargs)|safe }}
+                            {% else %}
+                                {{ field(class="form-control-file%s" % extra_classes, **kwargs)|safe }}
+                            {% endif %}
+                        {% else %}
+                            {% if field.errors %}
+                                {{ field(class="form-control form-control-sm is-invalid%s" % extra_classes, **kwargs)|safe }}
+                            {% else %}
+                                {{ field(class="form-control form-control-sm%s" % extra_classes, **kwargs)|safe }}
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {%- if field.errors %}
+                        {%- for error in field.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                        {%- endfor %}
+                    {%- endif %}
+                {%- else -%}
+                    {{ field.label(class="form-control-label")|safe }}: {% if field.description %} <a tabindex="0" role="button" data-toggle="popover" data-trigger="focus" data-html="true" title="{{ field.label.text|safe }}" data-content="{{ field.description|safe }}"><span class="far fa-question-circle text-info"></span></a>{% endif %}
+                    {% if field.type == 'FileField' %}
+                        {% if field.errors %}
+                            {{ field(class="form-control-file is-invalid%s" % extra_classes, **kwargs)|safe }}
+                        {% else %}
+                            {{ field(class="form-control-file%s" % extra_classes, **kwargs)|safe }}
+                        {% endif %}
+                    {% else %}
+                        {% if field.errors %}
+                            {{ field(class="form-control form-control-sm is-invalid%s" % extra_classes, **kwargs)|safe }}
+                        {% else %}
+                            {{ field(class="form-control form-control-sm%s" % extra_classes, **kwargs)|safe }}
+                        {% endif %}
+                    {% endif %}
+                    {%- if field.errors %}
+                        {%- for error in field.errors %}
+                            <div class="invalid-feedback" style="display: block;">{{ error }}</div>
+                        {%- endfor %}
+                    {%- endif %}
+                {%- endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{% macro render_info(info_id, label, value, class=None) %}
+{% if class %}
+  {% set css = class %}
+{% else %}
+  {% set css = 'form-info' %}
+{% endif %}
+<div class="form-element">
+  <div class="form-label"><label for="{{ info_id }}">{{ label }}</label>:</div>
+  <div class="form-input"><span class="" id="{{ info_id }}" >{{ value }}</span></div>
+</div>
+{% endmacro %}
+
+
+{% macro render_input(id, label, size, value=None, class=None, placeholder=None) %}
+<div class="form-element">
+  <div class="form-label"><label for="{{ id }}">{{ label }}:</label></div>
+  <div class="form-input"><input type="text" class="form-control form-control-sm {% if class %} {{ class }} {% endif %}" id="{{ id }}" name="{{ id }}" size="{{ size }}" placeholder="{{ placeholder }}"></div>
+</div>
+{% endmacro %}
+
+{% macro render_checkbox(id, label, checked=false, value=None, class=None) %}
+<div class="form-element">
+  <div class="form-label"><label for="{{ id }}">{{ label }}:</label></div>
+  <div class="form-input"><input type="checkbox" {% if checked %} checked {% endif %} class="form-control form-control-sm {% if class %} {{ class }} {% endif %}" id="{{ id }}" name="{{ id }}"></div>
+</div>
+{% endmacro %}
+
+{% macro datatable( tableid,
+                    compact=False,
+                    hover=True,
+                    striped=False,
+                    border=True,
+                    responsive=True,
+                    thead='thead-light' ) %}
+{# edit just the value to associate to each style #}
+{% set class = 'table' + (' table-sm' if compact else '') + (' table-striped' if striped else '') + (' row-border' if border else '') + (' table-hover' if hover else '') + (' table-responsive-lg' if responsive else '') %}
+<table id='{{ tableid }}' class='{{ class }}' cellspacing='0' width='100%'>
+    <thead class="{{ thead }}">
+    </thead>
+</table>
+{% endmacro %}

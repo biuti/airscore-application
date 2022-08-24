@@ -1,0 +1,476 @@
+{% extends "base_admin.html"%}
+
+{% block page_title %}
+Competition Settings
+{% endblock %}
+
+{% block css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet"/>
+{% endblock %}
+
+{% block back %}
+<a href="{{ url_for('user.pilot_admin', compid=compid) }}" class='btn btn-primary mr-2'>
+  Registered Pilots
+</a>
+<a href="{{ url_for('user.region_admin') }}" class='btn btn-primary mr-2'>
+  Flying Areas
+</a>
+<a href="{{ url_for('user.comp_score_admin', compid=compid) }}" class='btn btn-primary'>
+  Event Results
+</a>
+{% endblock %}
+
+{% block header %} {{compform.comp_name.data}} {% endblock %}
+
+{% block content %}
+<form method='post' id="main_comp_settings_form">
+  {{compform.hidden_tag()}}
+
+  <!-- Save Settings button -->
+  <div class='tab-save row-wrap'>
+    {% if compform.submit %}
+      {{compform.submit(class="btn btn-outline-secondary", id="main_comp_save_button")}}
+      <h6 class="ml-4 mt-2 pr-1 pl-1" id="save_button_warning_text"></h6>
+    {% else %}
+    <h6 class="font-weight-bold text-info">Settings are readonly</h6>
+    {% endif%}
+
+  </div>
+
+  <!-- Settings Tab Section -->
+  <div role="tabpanel" class="tab-panel">
+    <!-- Nav tabs -->
+    <ul role="tablist" id="tab-list"  class="nav nav-tabs">
+      <li role="presentation" class="nav-item"><a role="tab" data-toggle="tab" class="nav-link active" id="details-tab " href="#details" aria-controls="details" aria-selected="true">Details</a></li>
+      <li role="presentation" class="nav-item"><a role="tab" data-toggle="tab" class="nav-link" href="#formula" aria-controls="formula">Formula</a></li>
+      <li role="presentation" class="nav-item"><a role="tab" data-toggle="tab" class="nav-link" href="#tracks" aria-controls="tracks">Tracks</a></li>
+      <li role="presentation" class="nav-item"><a role="tab" data-toggle="tab" class="nav-link" href="#rankings" aria-controls="rankings">Rankings</a></li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- Tab panes -->
+      {% from "macros.html" import render_field with context %}
+      {% set readonly = (session.external or not session.is_editor) %}
+      {% set not_allowed = not session.is_editor %}
+      <div role="tabpanel" class="tab-pane column-wrap fade show active" id="details">
+        <h4 class='tab-title font-weight-bold'>Competition Details:</h4>
+        {% if session.external %}
+        <section class="tab-row column-wrap form">
+          <h5 class="text-info bg-warning p-1">External Event</h5>
+          <p class="description">{{ compform.external.description }}</p>
+          <p class="description">It is possible to convert Event to Airscore format. Following process will occur:</p>
+          <ul>
+            <li>All task definitions (distance, optimise distance) will be recalculated</li>
+            <li>All pilots will be set NYP for all tasks.</li>
+          </ul>
+          <p class="description">Once converted, <strong>the process cannot be undone</strong>.<br/>Original imported results will still be available.</p>
+          <section class="panel-row row-wrap button">
+            <button class='btn btn-warning' type='button' id='confirm_convert'>
+              Convert Event
+            </button>
+          </section>
+        </section>
+        {% endif %}
+        <section class="tab-row row-wrap form">
+            {{ render_field(compform.comp_name, size=40, disabled=readonly) }}
+            {{ render_field(compform.comp_code, size=20, disabled=not_allowed) }}
+            {{ render_field(compform.sanction, disabled=not_allowed) }}
+            {{ render_field(compform.comp_class, disabled=readonly) }}
+        </section>
+        <section class="tab-row row-wrap form">
+            {{ render_field(compform.comp_site, size=40, disabled=readonly) }}
+            {{ render_field(compform.date_from, size=15, disabled=readonly) }}
+            {{ render_field(compform.date_to, size=15, disabled=readonly) }}
+            {{ render_field(compform.time_offset, disabled=readonly) }}
+        </section>
+        <section class="tab-row row-wrap form">
+            {{ render_field(compform.MD_name, size=40, disabled=not_allowed) }}
+            {{ render_field(compform.website, size=20, disabled=not_allowed) }}
+            {{ render_field(compform.comp_type, disabled=True) }}
+        </section>
+        {% if allow_open_event or self_register %}
+        <section class="tab-row row-wrap form">
+            {% if allow_open_event %}
+            {{ render_field(compform.pilot_registration, disabled=readonly) }}
+            {% endif %}
+            {% if self_register %}
+            {{ render_field(compform.self_register, disabled=readonly) }}
+            {% endif %}
+        </section>
+        {% endif %}
+      </div>
+      <div role="tabpanel" class="tab-pane column-wrap fade" id="formula">
+        <h4 class='tab-title font-weight-bold'>Formula Parameters:</h4>
+        <section class="tab-row row-wrap form">
+            {{ render_field(compform.formula, disabled=readonly) }}
+            {{ render_field(compform.overall_validity, disabled=readonly) }}
+            <div id="validity_param_div" style="{% if compform.overall_validity.data == 'all' %}display:none{% endif %}">
+            {{ render_field(compform.validity_param, size=5, disabled=readonly) }}
+            </div>
+        </section>
+        <section class="tab-row row-wrap form">
+            {{ render_field(compform.min_dist, size=5, disabled=readonly) }}
+            {{ render_field(compform.nom_dist, size=5, disabled=readonly) }}
+            {{ render_field(compform.nom_time, size=5, disabled=readonly) }}
+            {{ render_field(compform.nom_launch, size=5, disabled=readonly) }}
+            {{ render_field(compform.nom_goal, size=5, disabled=readonly) }}
+        </section>
+        <section class="tab-row row-wrap form">
+            {{ render_field(compform.scoring_altitude, disabled=readonly) }}
+        </section>
+        <section class="tab-row row-wrap button">
+          <button class='btn btn-primary' type='button' data-toggle='collapse' data-target='#adv_params'
+                    aria-expanded='false' aria-controls='adv_params'>
+              Advanced Parameters
+          </button>
+        </section>
+        <section class="tab-row column-wrap collapse" id='adv_params'>
+        {% include "users/formula_adv_settings.html" %}
+        </section>
+      </div>
+      <div role="tabpanel" class="tab-pane column-wrap fade" id="tracks">
+        <h4 class='tab-title font-weight-bold'>Track Management:</h4>
+        <section class="tab-row row-wrap form">
+          {{ render_field(compform.track_source, disabled=readonly) }}
+        </section>
+        <section class="tab-row row-wrap form">
+          <div>
+            {{ render_field(compform.igc_parsing_file, disabled=readonly) }}
+            <a class="form-link" id='link_igc_config'>view/edit</a>
+          </div>
+          {{ render_field(compform.check_launch, disabled=readonly) }}
+          {{ render_field(compform.check_g_record, disabled=readonly) }}
+          <div class="row-wrap">
+            {{ render_field(compform.airspace_check, disabled=readonly) }}
+            {% if compform.airspace_check.data %}
+            <a href="{{ url_for('user.airspace_check_admin', compid=compid) }}" class='btn btn-info ml-2'>
+              Parameters
+            </a>
+          {% endif %}
+          </div>
+        </section>
+      </div>
+      <div role="tabpanel" class="tab-pane column-wrap fade" id="rankings">
+        <h4 class='tab-title font-weight-bold'>Rankings:</h4>
+        <section class="tab-row column-wrap form">
+          <table class="rankings dataTable no-footer" id="rankings_table">
+          </table>
+        </section>
+        <section class="tab-row button">
+          {% if session.is_editor %}
+          <button id='add_ranking_button' class='btn btn-success' onclick="add_ranking()" type="button">
+            Add
+          </button>
+          {% endif %}
+        </section>
+        <section class="tab-row row-wrap form">
+          {{ render_field(compform.country_scoring, disabled=not_allowed) }}
+          <div class='display-if' id='country_details' data-target_name='country_scoring'
+             data-target_type='checkbox' data-target_value='true'>
+            {{ render_field(compform.max_country_size, size=10, disabled=not_allowed) }}
+            {{ render_field(compform.country_size, size=10, disabled=not_allowed) }}
+          </div>
+          {{ render_field(compform.team_scoring, disabled=not_allowed) }}
+          <div class='display-if' id='team_details' data-target_name='team_scoring'
+             data-target_type='checkbox' data-target_value='true'>
+            {{ render_field(compform.max_team_size, size=10, disabled=not_allowed) }}
+            {{ render_field(compform.team_size, size=10, disabled=not_allowed) }}
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Tasks Section -->
+<div class="panel-content column-wrap">
+  <div class="panel-switch">
+    <button class='btn btn-primary' type='button' data-toggle='collapse' data-target='#task_list'
+            aria-expanded='false' aria-controls='task_list'>
+      Tasks
+    </button>
+  </div>
+  <div class='panel collapse' id='task_list'>
+    <section class="panel-row row-wrap button">
+      {% if not taskform.task_region.choices|count %}
+      <p class="alert alert-primary small" id="no_region_alert">
+          Tasks cannot be added until at least one <a href="{{ url_for('user.region_admin') }}">Flying Area</a> has been created.
+      </p>
+      {% else %}
+      {% if compform.submit and not readonly %}
+      <button id='add_task_modal_button' class='btn btn-secondary' type='button' onclick='add_task()'>
+        Add task
+      </button>
+      {% endif %}
+    </section>
+    <section class="panel-row row-wrap form">
+      <table class='table' id='tasks'>
+      </table>
+      {% endif %}
+    </section>
+  </div>
+</div>
+
+{% if ladderform %}
+<!-- Ladder Section -->
+<div class="panel-content column-wrap">
+  <div class="panel-switch">
+    <button class='btn btn-primary' type='button' data-toggle='collapse' data-target='#ladder_list'
+            aria-expanded='false' aria-controls='ladder_list'>
+      Ladders
+    </button>
+  </div>
+  <div class='panel collapse' id='ladder_list'>
+    <section class="panel-row row-wrap button">
+      {% if compform.submit %}
+      <button id='save_ladders_button' class='btn btn-success' type='button' onclick='save_ladders()'>
+        Save
+      </button>
+      {% endif%}
+    </section>
+    <section class="panel-row row-wrap form">
+      {% for ladder in ladderform.ladders %}
+        {{ render_field(ladder) }}
+      {% endfor %}
+    </section>
+  </div>
+</div>
+{% endif %}
+
+<!-- Managing Section -->
+<div class="panel-content column-wrap" id="event-management-section">
+  <div class="panel-switch">
+    <button class='btn btn-primary' type='button' data-toggle='collapse' data-target='#roles_management_panel'
+            aria-expanded='false' aria-controls='roles_management_panel'>
+      Management
+    </button>
+  </div>
+  <div class='panel collapse' id='roles_management_panel'>
+    <h4 class='panel-title font-weight-bold'>Roles Management:</h4>
+    <section class="panel-row row-wrap form">
+      <div class='form-group col-md-6'>
+        <h6 class='font-weight-bold'>Owner:</h6>
+        <h6 id='owner'></h6>
+        <h6 class='font-weight-bold'>Scorekeepers:</h6>
+        <table class="table table-sm mb-3" id='scorekeeper_table'>
+          <tbody>
+          </tbody>
+        </table>
+        {% if compform.submit %}
+        <button id='add_scorekeeper_switch' class='btn btn-secondary' type='button' data-toggle='collapse'
+                data-target='#add_sk' aria-expanded='false' aria-controls='add_sk'>
+          Add scorekeeper
+        </button>
+        {% endif %}
+      </div>
+      <div class="panel-content column-wrap">
+        <div class='panel collapse' id='add_sk'>
+          <p class="alert alert-primary small">
+            All <i>ADMIN</i> and <i>MANAGER</i> user have access to the competition settings and scoring.<br />
+            Only Scorekeepers need to be added to have access to the competition.
+          </p>
+          <section class="panel-row row-wrap form mb-3">
+            {{ render_field(scorekeeperform.scorekeeper) }}
+          </section>
+          <section class="panel-row row-wrap button">
+            <button id='save_scorekeeper_button' class='btn btn-success' type='button' onclick='add_scorekeeper()'>
+            Add
+            </button>
+          </section>
+        </div>
+      </div>
+    </section>
+    <h4 class='panel-title font-weight-bold'>Download:</h4>
+    <section class="panel-row row-wrap button">
+      <a id='export_fsdb' class='btn btn-success' onclick='export_to_fsdb()' href="{{ url_for('user._export_fsdb', compid=compid)}}">Export to FSDB</a>
+      <p id='fsdb_spinner'></p>
+    </section>
+  </div>
+</div>
+
+<!----add task modal starts here--->
+<div id='add_task_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <form method='post' id="new_task_form">
+        <div class='modal-header'>
+          <h4 class='modal-title'>Add Task</h4>
+        </div>
+        <div class='modal-body'>
+          <div class="form-row">
+            <section class="panel-row row-wrap form">
+                {{ render_field(taskform.task_number, size=2) }}
+                {{ render_field(taskform.task_date) }}
+                {{ render_field(taskform.task_region) }}
+            </section>
+            <section class="panel-row row-wrap form">
+                {{ render_field(taskform.task_name, size=10) }}
+                {{ render_field(taskform.task_comment, size=20) }}
+            </section>
+          </div>
+        </div>
+        <div class='modal-errors'>
+        </div>
+        <div class='modal-footer'>
+          <p id='add_task_spinner'></p>
+          <button type='button' class='btn btn-danger' data-dismiss='modal'>Cancel</button>
+          {{ taskform.submit(class="btn btn-success", id="add_task_button") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!--Modal ends here--->
+
+<!----delete modal starts here--->
+<div id='delete_task_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Please confirm</h4>
+      </div>
+      <div class='modal-body' id='modal-body'>
+        <p>Here the description starts here........</p>
+
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-success' data-dismiss='modal'>Cancel</button>
+        <button id='delete_confirmed' type='button' class='btn btn-danger' data-dismiss='modal'>Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--Modal ends here--->
+
+<!----confirm update modal starts here--->
+<div id='confirm_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Please confirm</h4>
+      </div>
+      <div class='modal-body' id='confirm_modal-body'>
+        <p class="text-info">Here the description starts here........</p>
+      </div>
+      <div class='modal-footer'>
+        <button id='confirm_cancel' type='button' class='btn btn-secondary' data-dismiss='modal'>No</button>
+        <button id='confirm_success' type='button' class='btn btn-danger' data-dismiss='modal'>Yes update</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--Modal ends here--->
+
+<!----formula update modal starts here--->
+<div id='formula_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Please confirm</h4>
+      </div>
+      <div class='modal-body' id='formula_modal-body'>
+        <p>Here the description starts here........</p>
+
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-success' data-dismiss='modal'>No</button>
+        <button id='formula_confirmed' type='button' class='btn btn-danger' data-dismiss='modal'>Yes update</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--Modal ends here--->
+
+<!----convert event modal starts here--->
+<div id='confirm_convert_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Please confirm:</h4>
+      </div>
+      <div class='modal-body'>
+        <p>Event will be converted to Airscore format</p>
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-success' data-dismiss='modal'>Cancel</button>
+        <button id='convert_confirmed' type='button' class='btn btn-danger'
+                data-dismiss='modal'>Yes convert</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--Modal ends here--->
+
+<!--- add-edit-ranking modal starts here--->
+<div id='rank_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <form method='post' id="ranking_form">
+        <div class='modal-header'>
+          <h4 class='modal-title'>Update Ranking Details</h4>
+        </div>
+        {% from "macros.html" import render_field with context %}
+        <div class='modal-body' id='rank_modal-body'>
+          <div class='form-row'>
+            <section class="pl-1 row-wrap panel-row">
+              <input type="hidden" id="rank_id" name="rank_id" value="">
+              {{ render_field(rankingform.rank_name, size=30) }}
+              {{ render_field(rankingform.rank_type) }}
+            </section>
+            <section class="pl-1 row-wrap panel-row" id="rank_cert">
+              {{ render_field(rankingform.cert_id) }}
+            </section>
+            <section class="pl-1 row-wrap panel-row" id="rank_date">
+              {{ render_field(rankingform.min_date, size=15) }}
+              {{ render_field(rankingform.max_date, size=15) }}
+            </section>
+            <section class="pl-1 row-wrap panel-row" id="rank_attr">
+              {{ render_field(rankingform.attr_id) }}
+            </section>
+            <section class="pl-1 row-wrap panel-row" id="rank_key_value">
+              <p id="rank_value_comment"></p>
+              {{ render_field(rankingform.rank_value, size=30) }}
+            </section>
+            <section class="pl-1 row-wrap panel-row" id="custom_link">
+              <a href="{{ url_for('user.pilot_admin', compid=compid)}}" class='btn btn-info'>
+                Custom Attributes
+              </a>
+            </section>
+          </div>
+        </div>
+        <div class='modal-errors'>
+        </div>
+        <div class='modal-footer'>
+          <button type='button' class='btn btn-danger' data-dismiss='modal'>Cancel</button>
+          {{rankingform.submit(class="btn btn-success", id="rank_submit")}}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!--- add-edit-ranking-Modal ends here--->
+
+{% endblock %}
+
+{% block js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="{{ static_url_for('static', filename='js/display-if.min.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/comp_settings.js') }}"></script>
+
+<script  type=text/javascript>
+  var compid = {{ compid|tojson }};
+  var comp_admin = {{ compform.submit|tojson }};
+  var external = {{ session.external|tojson }};
+  var is_editor = {{ session.is_editor|tojson }};
+  var link_get_tasks = "{{ url_for('user._get_tasks', compid=compid)}}";
+  var formula_preset = {{ formula_preset|tojson }};
+  var tasks_info = {{ tasks_info|tojson }};
+  var link_add_task = "{{ url_for('user._add_task', compid=compid)}}";
+  var link_get_scorekeepers = "{{ url_for('user._get_scorekeepers', compid=compid)}}";
+  var link_add_scorekeeper = "{{ url_for('user._add_scorekeeper', compid=compid)}}";
+  {% if ladderform %}
+  var link_save_comp_ladders = "{{ url_for('user._save_comp_ladders', compid=compid)}}";
+  {% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html"%}
+
+{% block page_title %}
+Task Result
+{% endblock %}
+
+{% block head %}
+<!-- CSS -->
+<link href='/static/css/task.css' rel='stylesheet'>
+<!-- JS -->
+<script type='text/javascript' src='/static/js/utils.js'></script>
+<script type='text/javascript' src='/static/js/microajax.minified.js'></script>
+{% endblock %}
+
+{% block back %}
+<a href='/ext_competition/{{ compid }}'>Back to Competition</a>
+{% endblock %}
+
+{% block content %}
+<div class='container-fluid'>
+  <div class='row mt-1 mb-2'>
+    <div class='col comp_header' id='comp_header'>
+      <h2 id='comp_name'></h2>
+      <h4 class='mb-2 text-info' id='ext_comp_header'>Imported Event - Not scored in Airscore</h4>
+      <h4 id='task_date'></h4>
+      <h4 id='status'></h4>
+      <select name='dhv' id='dhv' class='form-control col-md-4' placeholder='Class'>
+        <option value='' selected>Open</option>
+      </select>
+    </div>
+    <div class='col task_waypoints'>
+      <table class='table table-sm' id='waypoints'>
+        <thead class='thead-light' id='wpts_hd'>
+        <tr>
+          <th style='width:10%'>Point</th>
+          <th style='width:12%'>Type</th>
+          <th style='width:15%; text-align:right;'>Size</th>
+          <th style='width:18%; text-align:right;'>Dist</th>
+          <th>Description</th>
+        </tr>
+        </thead>
+        <tbody class='small' id='wpts_bd'></tbody>
+      </table>
+    </div>
+  </div>
+  <div class='row mb-3'>
+    <div class='col w-100'>
+      {% from "macros.html" import datatable with context %}
+      {{ datatable('results_table') }}
+      <p>
+        <span id='created' class=''></span>
+      </p>
+    </div>
+  </div>
+  <div class='row'>
+    <div id='comments' class='w-100'>
+      <h4 id='comments_header'>Notifications</h4>
+    </div>
+    <div id='other_pilots' class='w-100'>
+      <h4 id='other_pilots_header'>Other Pilots</h4>
+    </div>
+  </div>
+  <div class='row'>
+    <div class='col-sm'>
+      <table class='table table-sm form_param' id='formula_left'>
+        <thead class='thead-light small'>
+        <tr>
+          <th>GAP Parameter</th>
+          <th>Setting</th>
+        </tr>
+        </thead>
+        <tbody class='small'></tbody>
+      </table>
+    </div>
+    <div class='col-sm'>
+      <table class='table table-sm form_param' id='formula_right'>
+        <thead class='thead-light small'>
+        <tr>
+          <th>GAP Parameter</th>
+          <th>Setting</th>
+        </tr>
+        </thead>
+        <tbody class='small'></tbody>
+      </table>
+    </div>
+    <div class='col-sm form_param'>
+      <table class='table table-sm form_param' id='taskinfo'>
+        <thead class='thead-light small'>
+        <tr>
+          <th>Task Metric</th>
+          <th>Value</th>
+        </tr>
+        </thead>
+        <tbody class='small'></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block js %}
+<script src="{{ static_url_for('static', filename='js/pop_task.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/class_filter.js') }}"></script>
+<script type='text/javascript'>populate_task({{results|tojson}})</script>
+{% endblock %}

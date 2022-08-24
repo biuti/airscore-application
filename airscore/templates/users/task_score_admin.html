@@ -1,0 +1,340 @@
+{% extends "base_admin.html"%}
+
+{% block page_title %}
+Task Scoring Admin
+{% endblock %}
+
+{% block css %}
+<link href='https://cdn.datatables.net/buttons/1.7.0/css/buttons.bootstrap4.min.css' rel='stylesheet'>
+{% endblock %}
+
+{% block back %}
+<a href="{{ url_for('user.comp_settings_admin', compid=compid) }}" class='btn btn-info'>
+  Back to Competition Settings
+</a>
+<a href="{{ url_for('user.task_admin', taskid=taskid)}}" class='btn btn-info ml-2'>
+  Task Settings
+</a>
+{% if not session.external and session.is_editor %}
+<a href="{{ url_for('user.track_admin', taskid=taskid)}}" class='btn btn-info ml-2'>
+  Tracks
+</a>
+{% endif %}
+{% if session.is_editor %}
+<a href="#" class='btn btn-secondary ml-2'>
+  Task Scores
+</a>
+<a href="{{ url_for('user.comp_score_admin', compid=compid) }}" class='btn btn-primary'>
+  Event Results
+</a>
+{% endif %}
+{% endblock %}
+
+{% block header %}
+{{session.comp_name}} - Task {{task_info.task_num}}
+{% endblock %}
+
+{% block content %}
+{% set readonly = session.external %}
+<!-- Settings Tab Section -->
+<div role="tabpanel" class="tab-panel">
+  <div role="tabpanel" class="tab-pane column-wrap fade show active" id="task_results">
+    {% if score_active %}
+    <section class="tab-row column-wrap form" id="process_task_section">
+      <h4 class='tab-title font-weight-bold'>Process Task:</h4>
+      <section class="row-wrap button">
+        {% if not session.is_editor %}
+        <h4>You are not a scorekeeper of this competition, thus you cannot access most of functionalities in this page.</h4>
+        {% elif not (task_info.cancelled or task_info.locked) %}
+        <button class='btn btn-primary' type='button' onclick='Score_modal();'>
+          Score Task
+        </button>
+        <button class='btn btn-outline-warning ml-3' type='button' data-toggle='modal' data-target='#fullscoremodal'>
+          Full Rescore
+        </button>
+        {% else %}
+        <span class="btn btn-info">Locked</span>
+        {% endif %}
+      </section>
+    </section>
+    {% endif %}
+    <section class="tab-row column-wrap form" id="task_results_section">
+      {% if task_info.cancelled %}
+      <h4 class='tab-title font-weight-bold'>Task is Cancelled</h4>
+      {% else %}
+      <h4 class='tab-title font-weight-bold'>Task Results:</h4>
+      {% if score_active %}
+      <section class="row-wrap button" id="lock_task_section">
+        <button id='lock_task_button' class='btn {% if task_info.locked %} btn-warning {% else %} btn-info {% endif %}' onclick="" type='button'>
+          {% if task_info.locked %} Unlock Task {% else %} Make Official {% endif %}
+        </button>
+        <h5 class="mt-2 ml-3 {% if task_info.locked %} text-warning {% else %} text-info {% endif %}">{% if task_info.locked %} Results will become Provisional. {% else %} This will lock task settings, tracks and results. {% endif %}</h5>
+      </section>
+      {% endif %}
+      <section class="tab-row row-wrap form">
+          <h5 class="mt-2" id='task_result_header'></h5>
+          <button id='download_task_html' class='btn btn-primary ml-5' onclick="" type='button'>
+            Download HTML
+          </button>
+      </section>
+      {% if session.is_editor %}
+      {% from "macros.html" import render_field with context %}
+      <section class="tab-row column-wrap button" id="scoring_runs_section">
+          {{ render_field(fileform.task_result_file, readonly=readonly) }}
+          <section class="row-wrap">
+            <button id='publish' class='btn btn-warning mt-3' type='button' onclick='toggle_publish();'>
+              Un-publish results
+            </button>
+            <button id='change_status' class='btn btn-primary ml-2 mt-3' type='button' onclick='open_status_modal();'>
+              Edit Status
+            </button>
+            <button id='task_preview' class='btn btn-primary ml-2 mt-3' onclick="" type='button'>
+              Preview
+            </button>
+            <button id='delete_result' class='btn btn-danger ml-2 mt-3' type='button' onclick='delete_result_modal();' disabled>
+              Delete Result
+            </button>
+          </section>
+      </section>
+      {% endif %}   <!-- is editor -->
+      {% endif %}   <!-- task cancelled -->
+    </section>
+  </div>
+</div>
+
+<!-- Task result Tab Section -->
+<div role="tabpanel" class="tab-panel" id="task_results_panel">
+  <!-- Nav tabs -->
+  <ul role="tablist" id="task_tab-list" class="nav nav-tabs">
+    <li role="presentation" class="nav-item"><a role="tab" data-toggle="tab" class="nav-link active" id="task_table_tab" href="#task_table" aria-controls="task_table">Results</a></li>
+    <li role="presentation" class="nav-item"><a role="tab" data-toggle="tab" class="nav-link" id="task_stats_tab" href="#task_stats" aria-controls="task_stats">Task Stats</a></li>
+  </ul>
+
+  <!-- Tab panes -->
+  <div class="tab-content">
+    <div role="tabpanel" class="tab-pane column-wrap fade show active" id="task_table">
+      {% from "macros.html" import datatable with context %}
+      {{ datatable('task_result', striped=True, compact=True) }}
+    </div>
+    <div role="tabpanel" class="tab-pane column-wrap fade" id="task_stats">
+      <table class='table table-sm form_param' id='taskinfo'>
+        <thead class='thead-light small' id='taskinfo_hd'>
+          <tr>
+            <th>Task Metric</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody class='small' id='taskinfo_bd'>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if session.is_editor %}
+<!---status-modal starts here--->
+<div id='statusmodal' class='modal fade' tabindex='-1' role='dialog'>
+  <div class='modal-dialog' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Edit Status</h4>
+        <button type='button' class='close' data-dismiss='modal' aria-label='Close'>
+          <span aria-hidden='true'>&times;</span>
+        </button>
+      </div>
+      <div class='modal-body' id='statusmodal-body'>
+        <div class='container-fluid'>
+          <div class='col-md-12'>
+
+            <br>
+            <input type="hidden" id="status_modal_filename" value="">
+            <label for='status_modal_comment'>Status:</label>
+            <input type='text' id='status_modal_comment' class='form-control'
+                   placeholder='partial/provisional/official etc.'>
+          </div>
+        </div>
+        <div class='modal-footer'>
+          <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+          <button type='button' onclick='change_status()' class='btn btn-primary'>Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!---status-Modal ends here--->
+
+<!---score-modal starts here--->
+<div id='scoremodal' class='modal fade' tabindex='-1' role='dialog'>
+  <div class='modal-dialog' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Score Task</h4>
+      </div>
+      <div class='modal-body' id='scoremodal-body'>
+        <div class='container-fluid'>
+          <div class='col-md-12'>
+            <input type='checkbox' class='form-check-input' id='autopublish' name='autopublish' value='1'>
+            <label class='form-check-label' for='autopublish'>publish results after scoring</label>
+            <br>
+            <br>
+            <label for='autopublish'>Status:</label>
+            <input type='text' id='status_comment' class='form-control' placeholder='partial/provisional/official etc.'>
+
+            <small id='helptxt' class='form-text text-muted'>This can be changed later also.</small>
+          </div>
+        </div>
+        <div class='modal-footer'>
+          <button type='button' class='btn btn-secondary' id='cancel_score_btn' data-dismiss='modal'>Cancel</button>
+          <button type='button' id='score_btn' onclick='Score()' class='btn btn-primary'>Score</button>
+          <p id='score_spinner'></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!---score-Modal ends here--->
+
+<!---full rescore-modal starts here--->
+<div id='fullscoremodal' class='modal fade' tabindex='-1' role='dialog'>
+  <div class='modal-dialog' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Full Rescore Task</h4>
+      </div>
+      <div class='modal-body' id='fullscoremodal-body'>
+        <div class='container-fluid'>
+          <div class='col-md-12'>
+            <p class="text-info">This will reprocess all tracks and score.<br />
+            Usually this is not necessary.</p>
+            <input type='checkbox' class='form-check-input' id='fullautopublish' name='autopublish' value='1'>
+            <label class='form-check-label' for='autopublish'>publish results after scoring</label>
+            <br>
+            <br>
+            <label for='autopublish'>Status:</label>
+            <input type='text' class="form-control form-control-sm" id='fullstatus_comment'
+                   placeholder='partial/provisional/official etc.'>
+
+            <small id='fullhelptxt' class='form-text text-muted'>This can be done later also.</small>
+          </div>
+        </div>
+        <div class='modal-footer'>
+          <button type='button' class='btn btn-secondary' id='cancel_fullscore_btn' data-dismiss='modal'>Cancel</button>
+          <button type='button' id='fullscore_btn' onclick='FullRescore();' class='btn btn-primary'>Full Rescore
+          </button>
+          <p id='fullscore_spinner'></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!---full_Rescore-Modal ends here--->
+
+<!---edit-modal starts here--->
+<div id='editmodal' class='modal fade bd-example-modal-lg   ' tabindex='-1' role='dialog'>
+  <div class='modal-dialog modal-lg' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Comments and Penalties/Bonuses</h4>
+      </div>
+      <div class='modal-body' id='editmodal-body'>
+        <h5 class='mb-2 text-secondary' id='editmodal-info'><span class='text-info' id="editmodal-pilot-name"></span>: <span class='text-secondary' id="editmodal-has-penalty">before pen. <span class='text-info' id="editmodal-before-penalty"></span>, penalty <span class='text-warning' id="editmodal-penalty"></span>, </span>SCORE <span class='text-primary' id="editmodal-score"></span></h5>
+        <div class='container-fluid pb-3'>
+          <p class="alert alert-primary">Automatic Penalty entries can be deleted, while custom entries can be also edited.<br />
+            Note that <strong>negative penalties are bonuses</strong>, so points that will be added to final score.<br />
+          A preview of the result is updated on top of this window. Final result is calculated using real scoring system
+          used by the competition so could be slightly different.</p>
+          <div class='col-md-12'>
+            {{ datatable('edit_table', striped=True) }}
+          </div>
+        </div>
+        <div class='modal-footer'>
+          <div id="editmodal-buttons">
+            <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+            <button type='button' id='save_adjustment' class='btn btn-primary'>Save</button>
+          </div>
+          <span id="editmodal-spinner"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!---edit-Modal ends here--->
+
+<!---delete-result-Modal starts here--->
+<div id='deletemodal' class='modal fade' tabindex='-1' role='dialog'>
+  <div class='modal-dialog' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title' id="delete_modal_title">Delete Task Result</h4>
+        <button type='button' class='close' data-dismiss='modal' aria-label='Close'>
+          <span aria-hidden='true'>&times;</span>
+        </button>
+      </div>
+      <div class='modal-body' id='deletemodal-body'>
+        <div class='container-fluid'>
+          <div class='col-md-12'>
+            <input type='checkbox' class='form-check-input' id='deletefile' name='deletefile' value='1'>
+            <label class='form-check-label text-danger font-weight-bold' for='deletefile'>Permanently delete result file from disk</label>
+            <p class="mt-4">Following Result will be deleted:</p>
+            <p class="mt-1" id="delete_description"></p>
+            <input type="hidden" id="delete_modal_filename" value="">
+          </div>
+        </div>
+        <div class='modal-footer'>
+          <button type='button' class='btn btn-secondary' id='cancel_delete_btn' data-dismiss='modal'>Cancel</button>
+          <button type='button' id='delete_btn' onclick='delete_result()' class='btn btn-danger'>Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!---delete-result-Modal ends here--->
+
+<!---process log Modal starts here -->
+<div class='modal fade' id='ProcessModal' tabindex='-1' role='dialog' aria-labelledby='ProcessModalTitle'
+     aria-hidden='true'>
+  <div class='modal-dialog modal-dialog-scrollable' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h5 class='modal-title' id='ProcessModalTitle'>Tracklog Processing</h5>
+        <button type='button' class='close' data-dismiss='modal' aria-label='Close'>
+          <span aria-hidden='true'>&times;</span>
+        </button>
+      </div>
+      <div class='modal-body' id='process_text'>
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-secondary' data-dismiss='modal'>Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- process log Modal ends here -->
+{% endif %}
+{% endblock %}
+
+{% block js %}
+{% if session.is_editor %}
+<script type='text/javascript' src="https://cdn.datatables.net/buttons/1.7.0/js/dataTables.buttons.min.js"></script>
+<script type='text/javascript' src="https://cdn.datatables.net/buttons/1.7.0/js/buttons.bootstrap4.min.js"></script>
+<script type='text/javascript' src="{{ static_url_for('static', filename='js/pop_task_score_admin.js') }}"></script>
+<!--<script type='text/javascript' src="{{ static_url_for('static', filename='js/mindmup-editabletable.js') }}"></script>-->
+<script type='text/javascript' src="{{ static_url_for('static', filename='js/ntable.js') }}"></script>
+<script type='text/javascript'>
+  var production = {{ production|tojson }};
+  var taskid = {{ taskid|tojson }};
+  var task_info = {{ task_info|tojson }};
+  var compid = {{ session.compid|tojson }};
+  var external = {{ session.external|tojson }};
+  var url_publish_result = "{{ url_for('user._publish_result') }}";
+  var url_unpublish_result = "{{ url_for('user._unpublish_result') }}";
+  var url_get_task_result_files = "{{ url_for('user._get_task_result_files', taskid=taskid) }}";
+  var url_score_task = "{{ url_for('user._score_task', taskid=taskid) }}";
+  var url_full_rescore_task = "{{ url_for('user._full_rescore_task', taskid=taskid) }}";
+  var url_change_result_status = "{{ url_for('user._change_result_status') }}";
+  var url_calculate_comp_result = "{{ url_for('user._calculate_comp_result', compid=session.compid) }}";
+  var url_adjust_task_result = "{{ url_for('user._adjust_task_result', taskid=taskid) }}";
+  var url_sse_stream = "{{ url_for('sse.stream', channel=current_user.username) }}";
+</script>
+{% endif %}
+{% endblock %}

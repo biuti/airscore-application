@@ -1,0 +1,186 @@
+{% extends "base_admin.html"%}
+
+{% block page_title %}
+Track Management
+{% endblock %}
+
+{% block css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet"/>
+{% endblock %}
+
+{% block back %}
+<a href="{{ url_for('user.comp_settings_admin', compid=compid)}}" class='btn btn-info'>
+  Back to Competition Settings
+</a>
+<a href="{{ url_for('user.task_admin', taskid=taskid)}}" class='btn btn-info ml-2'>
+  Task Settings
+</a>
+{% if not session.external and session.is_editor %}
+<a href="#" class='btn btn-secondary ml-2'>
+  Tracks
+</a>
+{% endif %}
+{% if session.is_editor and (task_info.ready_to_score or task_info.locked) %}
+<a href="{{ url_for('user.task_score_admin', taskid=taskid)}}" class='btn btn-info ml-2'>
+  Task Scores
+</a>
+{% endif %}
+{% endblock %}
+
+{% block header %}
+{{session.comp_name}} - Task {{task_info.task_num}}
+{% endblock %}
+
+{% block content %}
+{% if not session.is_editor %}
+<h2>You are not authorised to access this page as you are not a scorekeeper of this competition</h2>
+
+{% else %}
+{% if not (task_info.cancelled or task_info.locked) and task_info.ready_to_score %}
+<div class='form-group col-md-12' id='bulk'>
+  <button id='bulk_button' class='btn btn-primary' onclick='open_bulk_modal();'>
+    Bulk Import Tracks
+  </button>
+
+  {% if task_info.track_source %}
+  <button id='{{ task_info.track_source }}_button' class='btn btn-primary ml-2' onclick='get_{{ task_info.track_source }}_tracks()'>
+    {{ task_info.track_source|title }}
+  </button>
+  {% if task_info.lt_active is defined %}
+  <button id='livetracking_button' class='btn btn-primary ml-2'>
+    Live Tracking
+  </button>
+  {% endif %}
+  {% endif %}
+  {% if telegram %}
+  <button id='telegram_button' class='btn btn-primary ml-2' onclick='send_telegram({{ taskid }});'>
+    Send Telegram Update
+  </button>
+  {% endif %}
+  {% if task_info.needs_recheck %}
+  <button id='recheck_button' class='btn btn-warning ml-2' onclick='recheck_tracks();'>
+    Check Tracks with Outdated Result
+  </button>
+  {% endif %}
+  <button type='button' id='log_button' class='btn btn-success ml-2' data-toggle='modal'
+          data-target='#ProcessModal'>
+    Processing log
+  </button>
+</div>
+{% endif %}
+
+<div class='text-center'>
+  <h3 id='TracksProcessed'></h3>
+</div>
+
+<div class='container' id='main'>
+  <br />
+  {% from "macros.html" import datatable with context %}
+  {{ datatable('tracks', striped=True) }}
+</div>
+
+<!---bulk-modal starts here--->
+<div id='bulkmodal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Bulk IGC Zip File Upload</h4>
+      </div>
+      <div class='modal-body' id='bulkmodal-body'>
+        <p id='zip_modal_message'>Please provide a ZIP file containing .igc files. Airscore will try to recognise pilot by track filename.<br/>
+          Filename like [anything].[number].igc will be interpreted as Pilot ID and is preferred format.<br/>
+          Usual filename formats as Flymaster Live, FSComp, CompCheck are supported, as well as any of the following:</p>
+        <p class="text-info" id="igc_filename_list">
+          {% for format in filename_formats %}
+          {{ format }}, <br />
+          {% endfor %}
+        </p>
+        <div id='zip_progress'>
+          <div class='bar' style='width: 0%;'><p id='zip_progress_text'></p></div>
+        </div>
+        <p id='zip_spinner'></p>
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-danger' data-dismiss='modal'>Cancel</button>
+        <button id='get_bulk_file_button' class='btn btn-primary ml-4' onclick='choose_zip_file()'>
+          Browse
+        </button>
+        <input id='bulk_fileupload' type='file' size='chars' class='custom-file-input' oninput='filesize(this);'
+               data-url='/users/_upload_track_zip/{{ taskid }}' name='zip_file'>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- bulk-Modal ends here--->
+
+<!-- process log Modal starts here -->
+<div class='modal fade' id='ProcessModal' tabindex='-1' role='dialog' aria-labelledby='ProcessModalTitle'
+     aria-hidden='true'>
+  <div class='modal-dialog modal-dialog-scrollable' role='document'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h5 class='modal-title' id='ProcessModalTitle'>Tracklog Processing</h5>
+        <button type='button' class='close' data-dismiss='modal' aria-label='Close'>
+          <span aria-hidden='true'>&times;</span>
+        </button>
+      </div>
+      <div class='modal-body' id='process_text'>
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-secondary' data-dismiss='modal'>Hide</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- process log Modal ends here -->
+
+<!--- livetracking details modal starts here--->
+<div id='lt_modal' class='modal fade' role='dialog'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4 class='modal-title'>Live Tracking Details</h4>
+      </div>
+      <div class='modal-body' id='mod_modal-body'>
+        <div class='form-row column-wrap'>
+          <section class="pl-1 column-wrap panel-row">
+            <input type="hidden" id="lt_id" value="">
+            <span class="text-primary font-weight-bold" id="lt_details_main"></span>
+          </section>
+          <section class="pl-1 column-wrap panel-row">
+            <span class="text-info" id="lt_details_secondary"></span>
+          </section>
+        </div>
+      </div>
+      <div class='modal-errors'>
+      </div>
+      <div class='modal-footer'>
+        <button type='button' class='btn btn-danger' data-dismiss='modal'>Cancel</button>
+        <button type='button' class='btn btn-primary' id="lt_modal_button">START</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--- livetracking details Modal ends here--->
+{% endif %}
+{% endblock %}
+
+{% if session.is_editor %}
+{% block js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script src="{{ static_url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/jquery-file-upload/jquery.ui.widget.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/jquery-file-upload/jquery.iframe-transport.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/jquery-file-upload/jquery.fileupload.js') }}"></script>
+<script src="{{ static_url_for('static', filename='js/pop_track_admin.js') }}"></script>
+<script type=text/javascript>
+  var production = {{ production|tojson }};
+  var taskid = {{ taskid|tojson }};
+  var task_info = {{ task_info|tojson }};
+  var url_set_result = "{{ url_for('user._set_result', taskid=taskid)}}";
+  var url_get_tracks_processed = "{{ url_for('user._get_tracks_processed', taskid=taskid)}}";
+  var url_get_xcontest_tracks = "{{ url_for('user._get_xcontest_tracks', taskid=taskid)}}";
+  var url_sse_stream = "{{ url_for('sse.stream', channel=current_user.username)}}";
+</script>
+{% endblock %}
+{% endif %}
